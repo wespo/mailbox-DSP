@@ -1,3 +1,11 @@
+/* 
+* July 13, 2015
+* Bill Esposito
+* Reid Kovacs
+*
+* This sketch recieves a number from and arduino, doubles it, and returns it. Make sure the arduino has MailboxCallResponse_Arduino.ino running.
+*/
+
 #include <mailbox.h>
 #include <SPI.h>
 #include "OLED.h"
