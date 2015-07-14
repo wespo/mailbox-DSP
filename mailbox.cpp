@@ -22,6 +22,8 @@
 //#include <avr/io.h>
 // ISR interrupt service routine
 //#include <avr/interrupt.h>
+#include "messageStateMachine.h" //extension for the mailbox library that enables the reading of a message one byte at a time instead of all at once.
+messageStateData arduinoMessageState; //struct with state data for message state machine.
 
 mailbox shieldMailbox;
 
@@ -53,11 +55,13 @@ int mailbox::begin(bool mode, void (*callbackFunction)()) {
     //attachInterrupt(INTERRUPT_INT1, (INTERRUPT_IsrPtr)INT1_isr, 0);    
     //enableInterrupt(INTERRUPT_INT1);
 
+    //initialize mailbox per byte state machine.
+    arduinoMessageState = initMessageStateData(arduinoMessageState);
 
-	if(!digitalRead(MS))
-		{
-			receive();
-		};
+	// if(!digitalRead(MS))
+	// 	{
+	// 		receive();
+	// 	};
 	return 1; //""success""
 }
 int mailbox::end() {
@@ -129,105 +133,13 @@ int mailbox::transmit(int *vector, unsigned int vectorSize) {
 	return 1;
 }
 int mailbox::receive() {
- 	//#define DALY 5
-   unsigned int header[4] = {0}; //header 0 = '$', header[1] = checksum, header[2,3] = message length.
-   SPI_Class::read(header, 1);
-   int count = 0;
-   while(header[0] != '$')
-   {
-   		count++;
-   		if(count > 255)
-   			break;
-   }
-   SPI_Class::read(header+1, 3);
-//   unsigned int messageLength = 0;
-   if(header[0] == '$')
-   {
-     inboxSize = (header[2] << 8) + header[3];
-     if(inboxSize > 2048)
-     {
-       return; //safety check against ram murder.
-     }
-     unsigned int recvChecksum = header[1];
-     
-     inbox = (char*) realloc(inbox, inboxSize);
-     //free(inbox);
-     //inbox = (char*) malloc(inboxSize);
-
-     //SPI_Class::read((unsigned int*) inbox, inboxSize);  
-     for(unsigned int i = 0; i < inboxSize; i++)
-     {
-     	SPI_Class::read((unsigned int *) &inbox[i], 1);
-     	delayMicroseconds(5); //we can potentially overwhelm the arduino with fast reads. Omitting this delay will not break the protocol but it will increase the error rate.
-     }
-     //compute checksum here
-     unsigned int compChecksum = 0;
-     for(unsigned int i = 0; i < inboxSize; i++)
-     {
-       compChecksum += inbox[i];
-     }
-     compChecksum &= 0x00FF;
-     if(compChecksum != recvChecksum)
-     {
-		//Serial.println("bad checksum"); //you probably don't want to call the callback on a broken packer, but here it is.
-     	//receiveCallback();
-     	unsigned int thisByte = MB_BAD;
-		SPI_Class::write(&thisByte,1);
-     	return 0;
-     }
-     else
-     {
-     	unsigned int thisByte = MB_ACK;
-		SPI_Class::write(&thisByte,1);
-		receiveCallback();
-		return 1;
-     }
-   }
-   else
-   {
-     //Serial.println("bad header");
-   	return 0;
-   }
+  if(messageStateMachine(arduinoMessageState))
+  {
+    receiveCallback();
+  }
 
 }
 interrupt void INT1_isr(void)
 {
-	// 	shieldMailbox.receive();
-	// 	delayMicroseconds(50);
-
-	// while(!digitalRead(MS))
-	// {
-	// 	shieldMailbox.receive();
-	// 	delayMicroseconds(50);
-	// };
-	// IRQ_clear(INTERRUPT_INT1);
-
- //    CSL_CPU_REGS->IFR0 = CSL_CPU_REGS->IFR0;
- //    disableInterrupt(INTERRUPT_INT1);
-	// IRQ_globalDisable();
- //    // Read all the input pin values to clear the intterupts
- //    int pin2Flag = digitalRead(MS);
- //    if(!pin2Flag)
- //    {
- //      shieldMailbox.receive();      
- //    }
- //    enableInterrupt(INTERRUPT_INT1);
- //    int curTime = 0;
- //    while(!digitalRead(MS)) //if master select stays low for more than a second after we did a recieve, we probably missed a packet edge.
-	// {
-	// 	//delay(10);
-	// 	curTime++;
-	// 	if(curTime > 100)
-	// 	{
-	// 		shieldMailbox.receive();
-	// 		delayMicroseconds(20);
-	// 		if(digitalRead(MS))
-	// 		{
-	// 			IRQ_globalEnable();
-	// 			return;
-	// 		}
-	// 		curTime = 0;
-	// 	}
-	// };
-	// IRQ_globalEnable();
+	
 }
