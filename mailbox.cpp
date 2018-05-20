@@ -37,13 +37,21 @@ int mailbox::begin(bool mode, void (*callbackFunction)()) {
 	receiveCallback = callbackFunction; //set the callback function.
 	spiMode = SPI_MASTER; //DSP Shield can only be an SPI Master due to hardware limitation.
 	
-    SPI_Class::begin(); //initialize SPI
+    #ifdef BOARD_DSPSHIELD_V2
+	SPI.begin(); //initialize SPI
+	SPI.setClockDivider(8);
+	SPI.setLoopBackMode(0);
+	SPI.setDataMode(0);
+	#else
+	SPI_Class::begin(); //initialize SPI
 	SPI_Class::setClockDivider(SPI_CLOCK_DIV128);
-
 	pinMode(SPI_RX_SEL, OUTPUT);
     pinMode(ARD_SPI_EN, OUTPUT);
     digitalWrite(SPI_RX_SEL, LOW);
     digitalWrite(ARD_SPI_EN, HIGH);
+	#endif
+    
+	
 	
 	//attach master select interrupt
 	pinMode(MS, INPUT);
@@ -66,7 +74,12 @@ int mailbox::begin(bool mode, void (*callbackFunction)()) {
 }
 int mailbox::end() {
 	//Kill SPI
-	SPI_Class::end();
+	#ifdef BOARD_DSPSHIELD_V2
+		SPI.end();
+	#else
+		SPI_Class::end();
+	#endif
+	
 	
 	//Detach GPIO Interrupt.
 	
@@ -120,11 +133,19 @@ int mailbox::transmit(int *vector, unsigned int vectorSize) {
 	for(unsigned int i = 0; i < messageLength+2; i++)
 	{
 		unsigned int thisByte = data[i]>>8;
-		SPI_Class::write(&thisByte,1);
-		//delayMicroseconds(10);
-		thisByte = data[i];	
-		SPI_Class::write(&thisByte,1);	
-		//delayMicroseconds(10);
+		    #ifdef BOARD_DSPSHIELD_V2
+				SPI.transfer(thisByte);
+				//delayMicroseconds(10);
+				thisByte = data[i];	
+				SPI.transfer(thisByte);
+				//delayMicroseconds(10);
+			#else
+				SPI_Class::write(&thisByte,1);
+				//delayMicroseconds(10);
+				thisByte = data[i];	
+				SPI_Class::write(&thisByte,1);	
+				//delayMicroseconds(10);
+			#endif
 	}
 	
 

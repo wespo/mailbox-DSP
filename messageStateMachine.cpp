@@ -1,5 +1,5 @@
 #include "messageStateMachine.h"
-
+#include "OLED.h"
 struct messageStateData initMessageStateData(messageStateData state)
 {
   state.ongoingMessage = false;
@@ -19,7 +19,9 @@ int messageStateMachine(messageStateData &messageState)
 	if(messageState.ongoingMessage)
 	{
 		//Yes, grab next byte. -- might be worth wrapping this next part in a check for the message hold down, but that will slow down message reciept.
-		SPI.read(&spiWord, 1);
+		//SPI.read(&spiWord, 1);
+		//digitalWrite(XF, LOW);
+		spiWord = SPI.transfer(0x00) & 0x000000FF;
 		messageState.byteCount++;
 		if(messageState.byteCount == 1) //first message. Checksum
 		{
@@ -28,12 +30,12 @@ int messageStateMachine(messageStateData &messageState)
 		}
 		else if(messageState.byteCount == 2) //compute message length
 		{
-			messageState.messageLength = spiWord << 8;
+			messageState.messageLength = (spiWord << 8) & 0xFF00;
 			return 0;
 		}
 		else if(messageState.byteCount == 3)
 		{
-			messageState.messageLength += spiWord;
+			messageState.messageLength += spiWord & 0x00FF;
 			if(messageState.messageLength > 2047) //reallocate the mailbox size.
 			{
 				messageState.messageLength = 2047; //enforce a reasonable maximum of 2kb on message size
@@ -44,9 +46,9 @@ int messageStateMachine(messageStateData &messageState)
 		}
 		else
 		{
-			shieldMailbox.inbox[messageState.byteCount - 4] = spiWord; //load read byte into the mailbox, offset because the first three bytes were 
-
-			if(messageState.byteCount > messageState.messageLength + 2) //if this was the last byte;
+			shieldMailbox.inbox[messageState.byteCount - 4] = spiWord & 0x000000FF; //load read byte into the mailbox, offset because the first three bytes were
+			delayMicroseconds(50);
+			if(messageState.byteCount > (messageState.messageLength + 2)) //if this was the last byte;
 			{
 				//compute checksum
 				unsigned int compChecksum = 0;
@@ -64,17 +66,25 @@ int messageStateMachine(messageStateData &messageState)
 				if(checksumValid)
 				{
 					//send ack
-			     	        spiWord = MB_ACK;
-					SPI.write(&spiWord,1);
+			     	spiWord = MB_ACK;
+					//SPI.write(&spiWord,1);
+			     	//SPI.transfer(0x00);
+			     	delayMicroseconds(50);
+			     	SPI.transfer(spiWord);
+			     	
 					//raise flag for handler
 					return 1;
+
 
 				}
 				else //checksum not valid
 				{
+					digitalWrite(XF, HIGH);
 					//send bad ack
 					spiWord = MB_BAD;
-					SPI.write(&spiWord,1);
+					//SPI.write(&spiWord,1);
+					SPI.transfer(spiWord);
+					SPI.transfer(0x00);
 					//return without handler flag
 					return 0;
 				}
@@ -103,10 +113,12 @@ int messageStateMachine(messageStateData &messageState)
  				//Arduino signaled for message
 				char sentinel;
 
-				SPI.read((unsigned int *) &sentinel, 1);
+				//SPI.read((unsigned int *) &sentinel, 1);
+				sentinel = SPI.transfer(0x00) & 0x000000FF;
 				if(sentinel == '$') //if so, we have an ongoing message
 				{
 					messageState.ongoingMessage = true;
+					//digitalWrite(XF, HIGH);
 					messageState.byteCount = 0; //start the byte counter;
 					return 0;
 				}

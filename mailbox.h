@@ -31,7 +31,11 @@ extern "C" void INT1_isr(void);
 #define MB_ACK 0xBE
 #define MB_BAD 0x44
 #define RETRIES 8
+#ifdef BOARD_DSPSHIELD_V2
+class mailbox {
+#else
 class mailbox : public SPI_Class {
+#endif
 public:
 	int begin(bool mode, void (*callbackFunction)()); //start as master or slave
 	int begin(bool mode); //start as master or slave
